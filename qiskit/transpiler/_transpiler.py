@@ -25,13 +25,16 @@ from qiskit.qobj import Qobj, QobjConfig, QobjExperiment, QobjItem, QobjHeader
 from ._parallel import parallel_map
 
 from pytket.dagcircuit_convert import dagcircuit_to_tk, tk_to_dagcircuit
-from pytket import Architecture, DirectedGraph
-from pytket._route_wrapper import route_directed
-from qiskit.mapper import Coupling
+
+from pytket._route_wrapper import route_directed, coupling2directed
 
 logger = logging.getLogger(__name__)
 
+from IPython.display import display
+from graphviz import Source
 
+
+     
 def tket_transpile(dag, coupling_map):
     circ = dagcircuit_to_tk(dag)
     num_qubits = circ.n_inputs()
@@ -41,12 +44,9 @@ def tket_transpile(dag, coupling_map):
         coupling_map = None
 
     if coupling_map:
-        coupling = Coupling(coupling_list2dict(coupling_map))
-        
-        edges = coupling_map
-        nodes = coupling.node_counter
         # arc = Architecture(edges, nodes)
-        init_map = [0]*circ.n_inputs()
+        directed_arc = coupling2directed(coupling_map)
+        nodes = directed_arc.get_nodes()
         place = False
         if place:
         # place by finding longest_path on coupling graph
@@ -54,14 +54,14 @@ def tket_transpile(dag, coupling_map):
         else:
             init_map = list(range(nodes))
         # route_ibm fnction that takes directed Arc, returns dag with cnots etc. 
-        directed_arc = DirectedGraph(edges,nodes)
         # print(directed_arc.get_adjacency())
-        circ.to_graphviz("chem_circ.dot")
+        display(Source(circ.to_graphviz_str()))
         print(circ.n_vertices())
         circ = route_directed(circ,directed_arc,init_map)
         print(circ.n_vertices())
-
-        circ.to_graphviz("chem_post_circ.dot")
+        display(Source(circ.to_graphviz_str()))
+        Source(circ.to_graphviz_str()).render('holy-grenade.gv', view=True)  
+        # circ.to_graphviz("chem_post_circ.dot")
         # post route optimise
 
         # return final map
@@ -112,6 +112,9 @@ def tk_compile(circuits, backend,
     basis_gates = basis_gates or backend_conf['basis_gates']
     coupling_map = coupling_map or backend_conf['coupling_map']
 
+    # print(circuits[0].qasm())
+    # q = circuits[0].get_qregs()["q"]
+    # circuits[0].cx(q[0], q[3])
     # step 1: Making the list of dag circuits
     dags = _circuits_2_dags(circuits)
 
