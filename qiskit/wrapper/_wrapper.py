@@ -20,7 +20,8 @@ from qiskit.dagcircuit import DAGCircuit
 from qiskit.transpiler._transpiler import (_matches_coupling_map,
                                            _pick_best_layout,
                                            _dags_2_qobj_parallel,
-                                           _transpile_dags_parallel)
+                                           _transpile_dags_parallel, tk_compile as trans_tk_compile)
+
 from qiskit.qobj._qobj import Qobj, QobjConfig, QobjHeader
 from qiskit._util import _parse_ibmq_credentials
 from qiskit.transpiler._transpilererror import TranspilerError
@@ -230,6 +231,22 @@ def get_backend(name):
 
 # Functions for compiling and executing.
 
+def tk_compile(circuits, backend,
+            config=None, basis_gates=None, coupling_map=None, initial_layout=None,
+            shots=1024, max_credits=10, seed=None, qobj_id=None, hpc=None,
+            skip_transpiler=False):
+    # pylint: disable=redefined-builtin
+    if isinstance(backend, str):
+        backend = _DEFAULT_PROVIDER.get_backend(backend)
+
+    pass_manager = None  # default pass manager which executes predetermined passes
+    if skip_transpiler:  # empty pass manager which does nothing
+        pass_manager = PassManager()
+
+    return trans_tk_compile(circuits, backend,
+                            config, basis_gates, coupling_map, initial_layout,
+                            shots, max_credits, seed, qobj_id, hpc,
+                            pass_manager)
 
 def compile(circuits, backend,
             config=None, basis_gates=None, coupling_map=None, initial_layout=None,
