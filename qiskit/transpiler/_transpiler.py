@@ -55,12 +55,12 @@ def tket_transpile(dag, coupling_map):
             init_map = list(range(nodes))
         # route_ibm fnction that takes directed Arc, returns dag with cnots etc. 
         # print(directed_arc.get_adjacency())
-        display(Source(circ.to_graphviz_str()))
-        print(circ.n_vertices())
-        circ = route_directed(circ,directed_arc,init_map)
-        print(circ.n_vertices())
-        display(Source(circ.to_graphviz_str()))
+        # display(Source(circ.to_graphviz_str()))
+        # print(circ.n_vertices())
+        circ = route_directed(circ,directed_arc, init_map)
         Source(circ.to_graphviz_str()).render('holy-grenade.gv', view=True)  
+        # print(circ.n_vertices())
+        display(Source(circ.to_graphviz_str()))
         # circ.to_graphviz("chem_post_circ.dot")
         # post route optimise
 
