@@ -24,9 +24,9 @@ from qiskit.mapper import (Coupling, optimize_1q_gates, coupling_list2dict, swap
 from qiskit.qobj import Qobj, QobjConfig, QobjExperiment, QobjItem, QobjHeader
 from ._parallel import parallel_map
 
-from pytket.dagcircuit_convert import dagcircuit_to_tk, tk_to_dagcircuit
+from pytket.dagcircuit_convert import dagcircuit_to_tk, tk_to_dagcircuit, coupling2directed
 
-from pytket._route_wrapper import route_directed, coupling2directed
+from pytket._bubble import route_directed
 
 logger = logging.getLogger(__name__)
 
