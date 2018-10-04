@@ -19,7 +19,7 @@ from qiskit import transpiler
 from qiskit.transpiler._passmanager import PassManager
 from ._circuittoolkit import circuit_from_qasm_file, circuit_from_qasm_string
 
-
+trans_tk_compile = transpiler._transpiler.tk_compile
 logger = logging.getLogger(__name__)
 
 
