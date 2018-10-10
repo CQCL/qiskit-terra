@@ -21,7 +21,7 @@ from ._circuittoolkit import circuit_from_qasm_file, circuit_from_qasm_string
 
 trans_tk_compile = transpiler._transpiler.tk_compile
 logger = logging.getLogger(__name__)
-
+from pytket.dagcircuit_convert import tket_pass
 
 def register(*args, provider_class=None, **kwargs):
     """
@@ -232,18 +232,54 @@ def tk_compile(circuits, backend,
             config=None, basis_gates=None, coupling_map=None, initial_layout=None,
             shots=1024, max_credits=10, seed=None, qobj_id=None, hpc=None,
             skip_transpiler=False):
+    """Compile a list of circuits into a qobj.
+
+    Args:
+        circuits (QuantumCircuit or list[QuantumCircuit]): circuits to compile
+        backend (BaseBackend or str): a backend to compile for
+        config (dict): dictionary of parameters (e.g. noise) used by runner
+        basis_gates (str): comma-separated basis gate set to compile to
+        coupling_map (list): coupling map (perhaps custom) to target in mapping
+        initial_layout (list): initial layout of qubits in mapping
+        shots (int): number of repetitions of each circuit, for sampling
+        max_credits (int): maximum credits to use
+        seed (int): random seed for simulators
+        qobj_id (int): identifier for the generated qobj
+        hpc (dict): HPC simulator parameters
+        skip_transpiler (bool): skip most of the compile steps and produce qobj directly
+
+    Returns:
+        Qobj: the qobj to be run on the backends
+
+    Raises:
+        TranspilerError: in case of bad compile options, e.g. the hpc options.
+
+    .. deprecated:: 0.6+
+        After 0.6, compile will only take a backend object.
+    """
     # pylint: disable=redefined-builtin
     if isinstance(backend, str):
-        backend = _DEFAULT_PROVIDER.get_backend(backend)
+        warnings.warn('compile() no longer takes backend string names.'
+                      'Please pass backend objects, obtained via'
+                      'IBMQ.get_backend() or Aer.get_backend().', DeprecationWarning)
+        try:
+            backend = Aer.get_backend(backend)
+        except KeyError:
+            backend = IBMQ.get_backend(backend)
 
     pass_manager = None  # default pass manager which executes predetermined passes
+    # TODO (jay) why do we need to pass skip and not pass manager directly
     if skip_transpiler:  # empty pass manager which does nothing
         pass_manager = PassManager()
+        tk = tket_pass(coupling_map)
+        pass_manager.add_pass(tk)
 
-    return trans_tk_compile(circuits, backend,
-                            config, basis_gates, coupling_map, initial_layout,
-                            shots, max_credits, seed, qobj_id, hpc,
-                            pass_manager)
+    qobj_standard = transpiler.compile(circuits, backend, config, basis_gates, coupling_map,
+                                       initial_layout, shots, max_credits, seed, qobj_id, hpc,
+                                       pass_manager)
+    return qobj_standard
+
+
 
 def compile(circuits, backend,
             config=None, basis_gates=None, coupling_map=None, initial_layout=None,
@@ -331,7 +367,7 @@ def execute(circuits, backend,
         except KeyError:
             backend = IBMQ.get_backend(backend)
 
-    qobj = compile(circuits, backend,
+    qobj = tk_compile(circuits, backend,
                    config, basis_gates, coupling_map, initial_layout,
                    shots, max_credits, seed, qobj_id, hpc,
                    skip_transpiler)
