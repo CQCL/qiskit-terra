@@ -24,50 +24,9 @@ from qiskit.mapper import (Coupling, optimize_1q_gates, coupling_list2dict, swap
 from qiskit.qobj import Qobj, QobjConfig, QobjExperiment, QobjItem, QobjHeader
 from ._parallel import parallel_map
 
-from pytket.dagcircuit_convert import dagcircuit_to_tk, tk_to_dagcircuit, coupling2directed
-
-from pytket._bubble import route_directed
-
 logger = logging.getLogger(__name__)
 
-from IPython.display import display
-from graphviz import Source
 
-
-     
-def tket_transpile(dag, coupling_map):
-    circ = dagcircuit_to_tk(dag)
-    num_qubits = circ.n_inputs()
-    # synthesise 
-    # optimise
-    if num_qubits == 1 or coupling_map == "all-to-all":
-        coupling_map = None
-
-    if coupling_map:
-        # arc = Architecture(edges, nodes)
-        directed_arc = coupling2directed(coupling_map)
-        nodes = directed_arc.get_nodes()
-        place = False
-        if place:
-        # place by finding longest_path on coupling graph
-            init_map = list(range(nodes))
-        else:
-            init_map = list(range(nodes))
-        # route_ibm fnction that takes directed Arc, returns dag with cnots etc. 
-        # print(directed_arc.get_adjacency())
-        # display(Source(circ.to_graphviz_str()))
-        # print(circ.n_vertices())
-        circ = route_directed(circ,directed_arc, init_map)
-        Source(circ.to_graphviz_str()).render('holy-grenade.gv', view=True)  
-        # print(circ.n_vertices())
-        display(Source(circ.to_graphviz_str()))
-        # circ.to_graphviz("chem_post_circ.dot")
-        # post route optimise
-
-        # return final map
-        return tk_to_dagcircuit(circ)
-    else:
-        return dag
 
 # pylint: disable=redefined-builtin
 def tk_compile(circuits, backend,
@@ -461,7 +420,7 @@ def transpile(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
     if pass_manager:
         # run the passes specified by the pass manager
         for pass_ in pass_manager.passes():
-            pass_.run(dag)
+            dag = pass_.run(dag)
     else:
         # default set of passes
         # TODO: move each step here to a pass, and use a default passmanager below
