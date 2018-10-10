@@ -18,8 +18,15 @@ The format is based on `Keep a Changelog`_.
 `UNRELEASED`_
 =============
 
+Added
+-----
+
+- Added DAG visualizer (#1059)
+
 Changed
 -------
+
+- Evolved pass-based transpiler to support advanced functionality (#1060)
 
 Deprecated
 ----------
