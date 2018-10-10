@@ -113,6 +113,7 @@ class PassManager():
         for passset in self.working_list:
             for pass_ in passset:
                 dag = self._do_pass(pass_, dag, passset.options)
+        return dag
 
     def _do_pass(self, pass_, dag, options):
         """Do a pass and its "requires".

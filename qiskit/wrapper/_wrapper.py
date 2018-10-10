@@ -272,7 +272,7 @@ def tk_compile(circuits, backend,
     if skip_transpiler:  # empty pass manager which does nothing
         pass_manager = PassManager()
         tk = tket_pass(coupling_map)
-        pass_manager.add_pass(tk)
+        pass_manager.add_passes(tk)
 
     qobj_standard = transpiler.compile(circuits, backend, config, basis_gates, coupling_map,
                                        initial_layout, shots, max_credits, seed, qobj_id, hpc,
