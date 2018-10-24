@@ -105,10 +105,13 @@ class PassManager():
             FlowController.controller_factory(passes, options, **flow_controller_conditions))
 
     def run_passes(self, dag):
-        """Run all the passes on the dag.
+        """Run all the passes on a DAG.
 
         Args:
-            dag (DAGCircuit): dag circuit to transform via all the registered passes
+            dag (DAGCircuit): DAG circuit to transform via all the registered passes
+
+        Returns:
+            DAGCircuit: Transformed DAG.
         """
         for passset in self.working_list:
             for pass_ in passset:

@@ -21,12 +21,20 @@ The format is based on `Keep a Changelog`_.
 Added
 -----
 
-- Added DAG visualizer (#1059)
+- Added DAG visualizer which requires `Graphivz <https://www.graphviz.org/>`_
+  (#1059)
+- Added a ASCII art circuit visualizer (#909)
+- Added a new kwarg `filename` to
+  `qiskit.tools.visualization.plot_bloch_vector()` to optionally write the
+  rendered bloch sphere to a file instead of displaying it (#1096)
+- Added a new kwarg `filename` to `plot_state()` to optionally write the
+  rendered plot to a file instead of displaying it (#1096)
 
 Changed
 -------
 
 - Evolved pass-based transpiler to support advanced functionality (#1060)
+- Avoid consuming results during `.retrieve_job()` and `.jobs()` (#1082).
 
 Deprecated
 ----------
@@ -40,6 +48,7 @@ Fixed
 -----
 - Fixed horizontal spacing when drawing barriers before CCNOT gates in latex
   circuit plots (#1051)
+- Use case insensitive matching when comparing premium account URLs. (#1102)
 
 
 `0.6.0`_ - 2018-10-04
