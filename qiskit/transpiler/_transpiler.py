@@ -144,6 +144,10 @@ def _transpile_dags(dags, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
                                            'coupling_map': coupling_map,
                                            'seed': seed,
                                            'pass_manager': pass_manager})
+    # final_dags = []
+    # for dag, initial_layout in dags_layouts:
+    #     res = transpile(dag, basis_gates=basis_gates, coupling_map=coupling_map, initial_layout=initial_layout, get_layout=False, seed=seed, pass_manager=pass_manager)
+    #     final_dags.append(res)
     return final_dags
 
 
