@@ -17,6 +17,6 @@ class TestUtil(QiskitTestCase):
 
     @unittest.skip("Temporary skipping")
     def test_check_ibmqx_version(self):
-        """Requiered IBMQE version."""
+        """Required IBMQE version."""
         with self.assertNoLogs('qiskit._util', level='WARNING'):
             _check_ibmqx_version()
