@@ -337,7 +337,10 @@ def transpile(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
     if pass_manager:
         # run the passes specified by the pass manager
         # TODO return the property set too. See #1086
+        removed_meas = remove_last_measurements(dag)
+
         dag = pass_manager.run_passes(dag)
+        return_last_measurements(dag, removed_meas, dag.final_layout)
     else:
         # default set of passes
         # TODO: move each step here to a pass, and use a default passmanager below
