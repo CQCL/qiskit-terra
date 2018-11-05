@@ -133,7 +133,8 @@ def _dags_2_dags(dags, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
                                            'pass_manager': pass_manager})
     # final_dags = []
     # for dag, initial_layout in dags_layouts:
-    #     res = transpile(dag, basis_gates=basis_gates, coupling_map=coupling_map, initial_layout=initial_layout, get_layout=False, seed=seed, pass_manager=pass_manager)
+    #     # res = transpile(dag, basis_gates=basis_gates, coupling_map=coupling_map, initial_layout=initial_layout, get_layout=False, seed=seed, pass_manager=pass_manager)
+    #     res = _transpile_dags_parallel((dag, initial_layout),basis_gates=basis_gates, coupling_map=coupling_map, pass_manager=pass_manager)
     #     final_dags.append(res)
     return final_dags
 
@@ -224,14 +225,11 @@ def transpile_dag(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
         coupling_map = None
 
     final_layout = None
-
+    
     if pass_manager:
         # run the passes specified by the pass manager
         # TODO return the property set too. See #1086
-        removed_meas = remove_last_measurements(dag)
-
         dag = pass_manager.run_passes(dag)
-        return_last_measurements(dag, removed_meas, dag.final_layout)
     else:
         # default set of passes
         # TODO: move each step here to a pass, and use a default passmanager below
