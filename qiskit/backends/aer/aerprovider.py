@@ -15,7 +15,7 @@ from qiskit._qiskiterror import QISKitError
 from qiskit.backends import BaseProvider
 from qiskit.backends.providerutils import resolve_backend_name, filter_backends
 
-from .qasm_simulator import CliffordSimulator, QasmSimulator
+from .qasm_simulator import CliffordSimulator, QasmSimulator, ProjqSimulator
 from .qasm_simulator_py import QasmSimulatorPy
 from .statevector_simulator import StatevectorSimulator
 from .statevector_simulator_py import StatevectorSimulatorPy
@@ -31,6 +31,7 @@ AER_STANDARD_BACKENDS = [
     StatevectorSimulatorPy,
     UnitarySimulator,
     CliffordSimulator,
+    ProjqSimulator
 ]
 
 
