@@ -126,16 +126,16 @@ def _dags_2_dags(dags, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
     """
 
     dags_layouts = list(zip(dags, initial_layouts))
-    final_dags = parallel_map(_transpile_dags_parallel, dags_layouts,
-                              task_kwargs={'basis_gates': basis_gates,
-                                           'coupling_map': coupling_map,
-                                           'seed_mapper': seed_mapper,
-                                           'pass_manager': pass_manager})
-    # final_dags = []
-    # for dag, initial_layout in dags_layouts:
-    #     # res = transpile(dag, basis_gates=basis_gates, coupling_map=coupling_map, initial_layout=initial_layout, get_layout=False, seed=seed, pass_manager=pass_manager)
-    #     res = _transpile_dags_parallel((dag, initial_layout),basis_gates=basis_gates, coupling_map=coupling_map, pass_manager=pass_manager)
-    #     final_dags.append(res)
+    # final_dags = parallel_map(_transpile_dags_parallel, dags_layouts,
+    #                           task_kwargs={'basis_gates': basis_gates,
+    #                                        'coupling_map': coupling_map,
+    #                                        'seed_mapper': seed_mapper,
+    #                                        'pass_manager': pass_manager})
+    final_dags = []
+    for dag, initial_layout in dags_layouts:
+        # res = transpile(dag, basis_gates=basis_gates, coupling_map=coupling_map, initial_layout=initial_layout, get_layout=False, seed=seed, pass_manager=pass_manager)
+        res = _transpile_dags_parallel((dag, initial_layout),basis_gates=basis_gates, coupling_map=coupling_map, pass_manager=pass_manager)
+        final_dags.append(res)
     return final_dags
 
 
@@ -225,7 +225,12 @@ def transpile_dag(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
         coupling_map = None
 
     final_layout = None
-    
+    # print("Prek Depth: ", dag.depth())
+    # print("PRE QASM\n\n")
+
+    # qastr = dag.qasm(qeflag=True)
+    # print(qastr)
+
     if pass_manager:
         # run the passes specified by the pass manager
         # TODO return the property set too. See #1086
@@ -263,6 +268,11 @@ def transpile_dag(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
                                      last_layout)
             logger.info("post-mapping properties: %s",
                         dag.property_summary())
+
+    # print("POST QASM\n\n")
+    # qastr = dag.qasm(qeflag=True)
+    # print(qastr)
+    # x = input("Press any key")
 
     # choose output format
     # TODO: do we need all of these formats, or just the dag?
