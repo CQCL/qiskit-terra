@@ -48,7 +48,7 @@ class ProjqSimulator(BaseBackend):
     """C++ quantum circuit simulator with realistic noise"""
 
     DEFAULT_CONFIGURATION = {
-        'name': 'projectq_simulator',
+        'name': 'statevector_projectq_simulator',
         'url': 'https://github.com/QISKit/qiskit-terra/src/qasm-simulator-cpp',
         'simulator': True,
         'local': True,
@@ -73,11 +73,20 @@ class ProjqSimulator(BaseBackend):
 
     def _run_job(self, job_id, qobj):
         from qiskit import load_qasm_string
-    
+        
         self._validate(qobj)
-        results = []
+        final_state_key = 32767  # Internal key for final state snapshot
+
+        states = []
+        result = {'status': 'COMPLETED', 'success': True, 'time_taken': 0.014861}
+        result['backend'] = self.name
+        result['id'] = uuid.uuid4()
+        result['result'] = []
         for experiment in qobj.experiments:
             name = experiment.header.name
+            seed = 12
+            # TODO fill these properly
+            experiment_result = {'name':name, 'seed': seed, 'shots': 1, 'status': 'DONE', 'success': True, 'time_taken': 0.014536}
             qasm = getattr(experiment.header, 'compiled_circuit_qasm', None)
             qc = load_qasm_string(qasm)
             dag= DAGCircuit.fromQuantumCircuit(qc)
@@ -85,17 +94,31 @@ class ProjqSimulator(BaseBackend):
             tkpass = tket_pass(experiment.config.coupling_map)
             circ = tkpass.process_circ(circ)
 
-            sim = TkSim(circ)
-            results.append(sim.get_statevector())
-            print(results)
+            sim = TkSim(circ, seed)
+            experiment_result['data'] = {'snapshots': {str(final_state_key): {'statevector': [sim.get_statevector()]}}}
 
-        result = results
+            result['result'].append(experiment_result)
+
         # result = run(qobj, self._configuration['exe'])
         result['job_id'] = job_id
         copy_qasm_from_qobj_into_result(qobj, result)
 
-        return result_from_old_style_dict(
+        result =  result_from_old_style_dict(
             result, [circuit.header.name for circuit in qobj.experiments])
+
+        for experiment_result in result.results.values():
+            snapshots = experiment_result.snapshots
+            if str(final_state_key) in snapshots:
+                final_state_key = str(final_state_key)
+            # Pop off final snapshot added above
+            final_state = snapshots.pop(final_state_key, None)
+            final_state = final_state['statevector'][0]
+            # Add final state to results data
+            experiment_result.data['statevector'] = final_state
+            # Remove snapshot dict if empty
+            if snapshots == {}:
+                experiment_result.data.pop('snapshots', None)
+        return result
 
     # def _run_job(self, job_id, qobj):
     #     """Run a Qobj on the backend."""
@@ -192,6 +215,7 @@ class QasmSimulator(BaseBackend):
         self._validate(qobj)
         result = run(qobj, self._configuration['exe'])
         # print(result)
+        # x = input("Stopped ...")
         result['job_id'] = job_id
         copy_qasm_from_qobj_into_result(qobj, result)
 
