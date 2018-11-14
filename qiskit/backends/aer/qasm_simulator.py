@@ -37,7 +37,7 @@ EXTENSION = '.exe' if platform.system() == 'Windows' else ''
 DEFAULT_SIMULATOR_PATHS = [
     # This is the path where Makefile creates the simulator by default
     os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                 '../../../src/qasm-simulator-cpp/qasm_simulator_cpp'
+                                 '../../../out/src/qasm-simulator-cpp/qasm_simulator_cpp'
                                  + EXTENSION)),
     # This is the path where PIP installs the simulator
     os.path.abspath(os.path.join(os.path.dirname(__file__),
@@ -92,7 +92,7 @@ class ProjqSimulator(BaseBackend):
             dag= DAGCircuit.fromQuantumCircuit(qc)
             circ = dagcircuit_to_tk(dag)
             tkpass = tket_pass(experiment.config.coupling_map)
-            circ = tkpass.process_circ(circ)
+            circ, _ = tkpass.process_circ(circ)
 
             sim = TkSim(circ, seed)
             experiment_result['data'] = {'snapshots': {str(final_state_key): {'statevector': [sim.get_statevector()]}}}
