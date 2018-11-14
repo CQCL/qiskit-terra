@@ -22,7 +22,7 @@ from qiskit.mapper import (Coupling, optimize_1q_gates, coupling_list2dict, swap
                            cx_cancellation, direction_mapper,
                            remove_last_measurements, return_last_measurements)
 from ._parallel import parallel_map
-
+import time
 logger = logging.getLogger(__name__)
 
 
@@ -46,6 +46,8 @@ def transpile(circuits, backend, basis_gates=None, coupling_map=None, initial_la
     Raises:
         TranspilerError: in case of bad compile options, e.g. the hpc options.
     """
+    print("In transpile")
+
     if isinstance(circuits, QuantumCircuit):
         circuits = [circuits]
 
@@ -61,6 +63,7 @@ def transpile(circuits, backend, basis_gates=None, coupling_map=None, initial_la
     basis_gates = basis_gates or backend_conf['basis_gates']
     coupling_map = coupling_map or backend_conf['coupling_map']
 
+    print("circuit_2_dags")
     # step 1: Making the list of dag circuits
     dags = _circuits_2_dags(circuits)
 
@@ -79,6 +82,7 @@ def transpile(circuits, backend, basis_gates=None, coupling_map=None, initial_la
                 and not _matches_coupling_map(dag, coupling_map)):
             _initial_layout = _pick_best_layout(dag, backend)
         initial_layouts.append(_initial_layout)
+    print("dag_2_dags")
 
     dags = _dags_2_dags(dags, basis_gates=basis_gates, coupling_map=coupling_map,
                         initial_layouts=initial_layouts, seed_mapper=seed_mapper,
@@ -126,16 +130,16 @@ def _dags_2_dags(dags, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
     """
 
     dags_layouts = list(zip(dags, initial_layouts))
-    # final_dags = parallel_map(_transpile_dags_parallel, dags_layouts,
-    #                           task_kwargs={'basis_gates': basis_gates,
-    #                                        'coupling_map': coupling_map,
-    #                                        'seed_mapper': seed_mapper,
-    #                                        'pass_manager': pass_manager})
-    final_dags = []
-    for dag, initial_layout in dags_layouts:
-        # res = transpile(dag, basis_gates=basis_gates, coupling_map=coupling_map, initial_layout=initial_layout, get_layout=False, seed=seed, pass_manager=pass_manager)
-        res = _transpile_dags_parallel((dag, initial_layout),basis_gates=basis_gates, coupling_map=coupling_map, pass_manager=pass_manager)
-        final_dags.append(res)
+    final_dags = parallel_map(_transpile_dags_parallel, dags_layouts,
+                              task_kwargs={'basis_gates': basis_gates,
+                                           'coupling_map': coupling_map,
+                                           'seed_mapper': seed_mapper,
+                                           'pass_manager': pass_manager})
+    # final_dags = []
+    # for dag, initial_layout in dags_layouts:
+    #     # res = transpile(dag, basis_gates=basis_gates, coupling_map=coupling_map, initial_layout=initial_layout, get_layout=False, seed=seed, pass_manager=pass_manager)
+    #     res = _transpile_dags_parallel((dag, initial_layout),basis_gates=basis_gates, coupling_map=coupling_map, pass_manager=pass_manager)
+    #     final_dags.append(res)
     return final_dags
 
 
@@ -230,7 +234,8 @@ def transpile_dag(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
 
     # qastr = dag.qasm(qeflag=True)
     # print(qastr)
-
+    start_time = time.time()
+    depth = dag.depth()
     if pass_manager:
         # run the passes specified by the pass manager
         # TODO return the property set too. See #1086
@@ -268,7 +273,8 @@ def transpile_dag(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
                                      last_layout)
             logger.info("post-mapping properties: %s",
                         dag.property_summary())
-
+    print("Compile time: ", time.time()-start_time)
+    print("Depth change: ", dag.depth() - depth)
     # print("POST QASM\n\n")
     # qastr = dag.qasm(qeflag=True)
     # print(qastr)

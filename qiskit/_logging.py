@@ -39,7 +39,7 @@ QISKIT_LOGGING_CONFIG = {
     'loggers': {
         'qiskit': {
             'handlers': ['h'],
-            'level': logging.INFO,
+            'level': logging.DEBUG,
         },
     }
 }

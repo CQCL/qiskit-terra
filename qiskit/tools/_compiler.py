@@ -50,7 +50,7 @@ def compile(circuits, backend,
         TranspilerError: in case of bad compile options, e.g. the hpc options.
 
     """
-
+    print("In compile")
     pass_manager = None  # default pass manager which executes predetermined passes
     if skip_transpiler:  # empty pass manager which does nothing
         pass_manager = PassManager()
