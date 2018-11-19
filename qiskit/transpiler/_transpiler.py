@@ -235,7 +235,7 @@ def transpile_dag(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
     # qastr = dag.qasm(qeflag=True)
     # print(qastr)
     start_time = time.time()
-    depth = dag.depth()
+    # depth = dag.depth()
     if pass_manager:
         # run the passes specified by the pass manager
         # TODO return the property set too. See #1086
@@ -274,7 +274,9 @@ def transpile_dag(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
             logger.info("post-mapping properties: %s",
                         dag.property_summary())
     print("Compile time: ", time.time()-start_time)
-    print("Depth change: ", dag.depth() - depth)
+    # print("Depth: ", depth)
+
+    # print("Depth change: ", dag.depth() - depth)
     # print("POST QASM\n\n")
     # qastr = dag.qasm(qeflag=True)
     # print(qastr)
