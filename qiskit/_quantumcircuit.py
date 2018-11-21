@@ -22,7 +22,7 @@ from qiskit.unrollers import _circuitbackend
 from qiskit._qiskiterror import QISKitError
 from qiskit._quantumregister import QuantumRegister
 from qiskit._classicalregister import ClassicalRegister
-from qiskit.tools import visualization
+# from qiskit.tools import visualization
 from qiskit.dagcircuit import DAGCircuit
 
 
