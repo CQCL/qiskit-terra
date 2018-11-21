@@ -25,6 +25,10 @@ from qiskit.backends import BaseBackend
 from qiskit.backends.aer.aerjob import AerJob
 from qiskit.qobj import qobj_to_dict
 
+from pytket._bubble import TkSim
+from pytket.dagcircuit_convert import tk_to_dagcircuit, dagcircuit_to_tk, tket_pass
+from qiskit.dagcircuit import DAGCircuit
+
 logger = logging.getLogger(__name__)
 
 EXTENSION = '.exe' if platform.system() == 'Windows' else ''
@@ -33,13 +37,139 @@ EXTENSION = '.exe' if platform.system() == 'Windows' else ''
 DEFAULT_SIMULATOR_PATHS = [
     # This is the path where Makefile creates the simulator by default
     os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                 '../../../out/src/qasm-simulator-cpp/qasm_simulator_cpp'
+                                 '../../../src/qasm-simulator-cpp/qasm_simulator_cpp'
                                  + EXTENSION)),
     # This is the path where PIP installs the simulator
     os.path.abspath(os.path.join(os.path.dirname(__file__),
                                  'qasm_simulator_cpp' + EXTENSION)),
 ]
 
+class ProjqSimulator(BaseBackend):
+    """C++ quantum circuit simulator with realistic noise"""
+
+    DEFAULT_CONFIGURATION = {
+        'name': 'statevector_projectq_simulator',
+        'url': 'https://github.com/QISKit/qiskit-terra/src/qasm-simulator-cpp',
+        'simulator': True,
+        'local': True,
+        'description': 'A C++ realistic noise simulator for qobj files',
+        'coupling_map': 'all-to-all',
+        "basis_gates": 'u0,u1,u2,u3,cx,cz,id,x,y,z,h,s,sdg,t,tdg,rzz,' +
+                       'snapshot,wait,noise,save,load'
+    }
+
+    def __init__(self, configuration=None, provider=None):
+        super().__init__(configuration=configuration or self.DEFAULT_CONFIGURATION.copy(),
+                         provider=provider)
+
+        # self.sim = TkSim()
+
+    def run(self, qobj):
+        """Run a qobj on the backend."""
+        job_id = str(uuid.uuid4())
+        aer_job = AerJob(self, job_id, self._run_job, qobj)
+        aer_job.submit()
+        return aer_job
+
+    def _run_job(self, job_id, qobj):
+        from qiskit import load_qasm_string
+        
+        self._validate(qobj)
+        final_state_key = 32767  # Internal key for final state snapshot
+
+        states = []
+        result = {'status': 'COMPLETED', 'success': True, 'time_taken': 0.014861}
+        result['backend'] = self.name
+        result['id'] = uuid.uuid4()
+        result['result'] = []
+        for experiment in qobj.experiments:
+            name = experiment.header.name
+            seed = 12
+            # TODO fill these properly
+            experiment_result = {'name':name, 'seed': seed, 'shots': 1, 'status': 'DONE', 'success': True, 'time_taken': 0.014536}
+            qasm = getattr(experiment.header, 'compiled_circuit_qasm', None)
+            qc = load_qasm_string(qasm)
+            dag= DAGCircuit.fromQuantumCircuit(qc)
+            circ = dagcircuit_to_tk(dag)
+            tkpass = tket_pass(experiment.config.coupling_map)
+            circ = tkpass.process_circ(circ)
+
+            sim = TkSim(circ, seed)
+            experiment_result['data'] = {'snapshots': {str(final_state_key): {'statevector': [sim.get_statevector()]}}}
+
+            result['result'].append(experiment_result)
+
+        # result = run(qobj, self._configuration['exe'])
+        result['job_id'] = job_id
+        copy_qasm_from_qobj_into_result(qobj, result)
+
+        result =  result_from_old_style_dict(
+            result, [circuit.header.name for circuit in qobj.experiments])
+
+        for experiment_result in result.results.values():
+            snapshots = experiment_result.snapshots
+            if str(final_state_key) in snapshots:
+                final_state_key = str(final_state_key)
+            # Pop off final snapshot added above
+            final_state = snapshots.pop(final_state_key, None)
+            final_state = final_state['statevector'][0]
+            # Add final state to results data
+            experiment_result.data['statevector'] = final_state
+            # Remove snapshot dict if empty
+            if snapshots == {}:
+                experiment_result.data.pop('snapshots', None)
+        return result
+
+    # def _run_job(self, job_id, qobj):
+    #     """Run a Qobj on the backend."""
+    #     self._validate(qobj)
+    #     final_state_key = 32767  # Internal key for final state snapshot
+    #     # Add final snapshots to circuits
+    #     for experiment in qobj.experiments:
+    #         experiment.instructions.append(
+    #             QobjInstruction(name='snapshot', params=[final_state_key],
+    #                             label='MISSING', type='MISSING')
+    #         )
+    #     result = super()._run_job(job_id, qobj)
+    #     # Remove added snapshot from qobj
+    #     for experiment in qobj.experiments:
+    #         del experiment.instructions[-1]
+    #     # Extract final state snapshot and move to 'statevector' data field
+    #     for experiment_result in result.results.values():
+    #         snapshots = experiment_result.snapshots
+    #         if str(final_state_key) in snapshots:
+    #             final_state_key = str(final_state_key)
+    #         # Pop off final snapshot added above
+    #         final_state = snapshots.pop(final_state_key, None)
+    #         final_state = final_state['statevector'][0]
+    #         # Add final state to results data
+    #         experiment_result.data['statevector'] = final_state
+    #         # Remove snapshot dict if empty
+    #         if snapshots == {}:
+    #             experiment_result.data.pop('snapshots', None)
+    #     return result
+
+    def _validate(self, qobj):
+        """Semantic validations of the qobj which cannot be done via schemas.
+        Some of these may later move to backend schemas.
+
+        1. No shots
+        2. No measurements in the middle
+        """
+        if qobj.config.shots != 1:
+            logger.info("statevector simulator only supports 1 shot. "
+                        "Setting shots=1.")
+            qobj.config.shots = 1
+        for experiment in qobj.experiments:
+            if getattr(experiment.config, 'shots', 1) != 1:
+                logger.info("statevector simulator only supports 1 shot. "
+                            "Setting shots=1 for circuit %s.", experiment.name)
+                experiment.config.shots = 1
+            # for op in experiment.instructions:
+            #     if op.name in ['measure', 'reset']:
+            #         raise SimulatorError(
+            #             "In circuit {}: statevector simulator does not support "
+            #             "measure or reset.".format(experiment.header.name))
 
 class QasmSimulator(BaseBackend):
     """C++ quantum circuit simulator with realistic noise"""
@@ -84,6 +214,8 @@ class QasmSimulator(BaseBackend):
     def _run_job(self, job_id, qobj):
         self._validate(qobj)
         result = run(qobj, self._configuration['exe'])
+        # print(result)
+        # x = input("Stopped ...")
         result['job_id'] = job_id
         copy_qasm_from_qobj_into_result(qobj, result)
 
