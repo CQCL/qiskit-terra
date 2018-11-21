@@ -25,7 +25,8 @@ import networkx as nx
 import sympy
 
 from qiskit import QuantumRegister, ClassicalRegister
-from qiskit import QISKitError, CompositeGate
+from qiskit import QISKitError
+from qiskit import _compositegate
 from ._dagcircuiterror import DAGCircuitError
 
 
@@ -37,6 +38,7 @@ class DAGCircuit:
     The nodes are connected by directed edges that correspond to qubits and
     bits.
     """
+
     # pylint: disable=invalid-name
 
     def __init__(self):
@@ -48,13 +50,13 @@ class DAGCircuit:
 
         # Map from a wire's name (reg,idx) to a Bool that is True if the
         # wire is a classical bit and False if the wire is a qubit.
-        self.wire_type = {}
+        self.wire_type = OrderedDict()
 
         # Map from wire names (reg,idx) to input nodes of the graph
-        self.input_map = {}
+        self.input_map = OrderedDict()
 
         # Map from wire names (reg,idx) to output nodes of the graph
-        self.output_map = {}
+        self.output_map = OrderedDict()
 
         # Running count of the total number of nodes
         self.node_counter = 0
@@ -81,7 +83,7 @@ class DAGCircuit:
         self.cregs = OrderedDict()
 
         # Map of user defined gates to ast nodes defining them
-        self.gates = {}
+        self.gates = OrderedDict()
 
         # Output precision for printing floats
         self.prec = 10
@@ -455,11 +457,11 @@ class DAGCircuit:
         for k, v in input_circuit.gates.items():
             if k not in union_gates:
                 union_gates[k] = v
-            if union_gates[k]["opaque"] != input_circuit.gates[k]["opaque"] or\
-               union_gates[k]["n_args"] != input_circuit.gates[k]["n_args"] or\
-               union_gates[k]["n_bits"] != input_circuit.gates[k]["n_bits"] or\
-               union_gates[k]["args"] != input_circuit.gates[k]["args"] or\
-               union_gates[k]["bits"] != input_circuit.gates[k]["bits"]:
+            if union_gates[k]["opaque"] != input_circuit.gates[k]["opaque"] or \
+                    union_gates[k]["n_args"] != input_circuit.gates[k]["n_args"] or \
+                    union_gates[k]["n_bits"] != input_circuit.gates[k]["n_bits"] or \
+                    union_gates[k]["args"] != input_circuit.gates[k]["args"] or \
+                    union_gates[k]["bits"] != input_circuit.gates[k]["bits"]:
                 raise DAGCircuitError("inequivalent gate definitions for %s"
                                       % k)
         return union_gates
@@ -505,10 +507,8 @@ class DAGCircuit:
                     # (k,0) exists in wire_map because wire_map doesn't
                     # fragment k
                     if not wire_map[(k, 0)][0] in valregs:
-                        size = max(map(lambda x: x[1],
-                                       filter(lambda x: x[0]
-                                              == wire_map[(k, 0)][0],
-                                              wire_map.values())))
+                        size = max(map(lambda x: x[1], filter(lambda x: x[0] == wire_map[(k, 0)][0],
+                                                              wire_map.values())))
                         qreg = QuantumRegister(wire_map[(k, 0)][0], size + 1)
                         add_regs.add(qreg)
         return add_regs
@@ -738,7 +738,7 @@ class DAGCircuit:
         # TODO: some of the input flags are not needed anymore
         # Rename qregs if necessary
         if aliases:
-            qregdata = {}
+            qregdata = OrderedDict()
             for q in aliases.values():
                 if q[0] not in qregdata:
                     qregdata[q[0]] = q[1] + 1
@@ -754,9 +754,9 @@ class DAGCircuit:
             out = "OPENQASM 2.0;\n"
             if qeflag:
                 out += "include \"qelib1.inc\";\n"
-            for k, v in sorted(qregdata.items()):
+            for k, v in qregdata.items():
                 out += "qreg %s[%d];\n" % (k, v.size)
-            for k, v in sorted(self.cregs.items()):
+            for k, v in self.cregs.items():
                 out += "creg %s[%d];\n" % (k, v.size)
             omit = ["U", "CX", "measure", "reset", "barrier"]
             # TODO: dagcircuit shouldn't know about extensions
@@ -813,7 +813,7 @@ class DAGCircuit:
                     else:
                         if nd["name"] == "measure":
                             if len(nd["cargs"]) != 1 or len(nd["qargs"]) != 1 \
-                               or nd["params"]:
+                                    or nd["params"]:
                                 raise QISKitError("bad node data")
 
                             qname = nd["qargs"][0][0]
@@ -908,6 +908,14 @@ class DAGCircuit:
 
         return full_pred_map, full_succ_map
 
+    def node_nums_in_topological_order(self):
+        """
+        Returns the nodes (their ids) in topological order.
+        Returns:
+            List(int): The list of node numbers in topological order
+        """
+        return nx.topological_sort(self.multi_graph)
+
     def substitute_circuit_all(self, name, input_circuit, wires=None):
         """Replace every occurrence of named operation with input_circuit."""
         # TODO: rewrite this method to call substitute_circuit_one
@@ -943,7 +951,7 @@ class DAGCircuit:
         #       that we add from the input_circuit.
         self.basis = union_basis
         self.gates = union_gates
-        for n in nx.topological_sort(self.multi_graph):
+        for n in self.node_nums_in_topological_order():
             nd = self.multi_graph.node[n]
             if nd["type"] == "op" and nd["name"] == name:
                 if nd["condition"] is None:
@@ -1191,7 +1199,7 @@ class DAGCircuit:
                 op_node[1]["qargs"]
                 for op_node in op_nodes
                 if op_node[1]["name"] not in {"barrier", "snapshot", "save", "load", "noise"}
-                ]
+            ]
             new_layer.multi_graph.add_nodes_from(op_nodes)
 
             # Now add the edges to the multi_graph
@@ -1216,7 +1224,7 @@ class DAGCircuit:
         A serial layer is a circuit with one gate. The layers have the
         same structure as in layers().
         """
-        for n in nx.topological_sort(self.multi_graph):
+        for n in self.node_nums_in_topological_order():
             nxt_nd = self.multi_graph.node[n]
             if nxt_nd["type"] == "op":
                 new_layer = DAGCircuit()
@@ -1260,7 +1268,7 @@ class DAGCircuit:
                     if successor in predecessor_count:
                         predecessor_count[successor] -= multiplicity
                     else:
-                        predecessor_count[successor] =\
+                        predecessor_count[successor] = \
                             self.multi_graph.in_degree(successor) - multiplicity
 
                     if predecessor_count[successor] == 0:
@@ -1288,12 +1296,12 @@ class DAGCircuit:
         # Iterate through the nodes of self in topological order
         # and form tuples containing sequences of gates
         # on the same qubit(s).
-        ts = list(nx.topological_sort(self.multi_graph))
+        ts = list(self.node_nums_in_topological_order())
         nodes_seen = dict(zip(ts, [False] * len(ts)))
         for node in ts:
             nd = self.multi_graph.node[node]
             if nd["type"] == "op" and nd["name"] in namelist \
-               and not nodes_seen[node]:
+                    and not nodes_seen[node]:
                 group = [node]
                 nodes_seen[node] = True
                 s = list(self.multi_graph.successors(node))
@@ -1313,7 +1321,7 @@ class DAGCircuit:
         Returns a dictionary of counts keyed on the operation name.
         """
         op_dict = {}
-        for node in nx.topological_sort(self.multi_graph):
+        for node in self.node_nums_in_topological_order():
             nd = self.multi_graph.node[node]
             name = nd["name"]
             if nd["type"] == "op":
@@ -1323,7 +1331,7 @@ class DAGCircuit:
                     op_dict[name] += 1
         return op_dict
 
-    def property_summary(self):
+    def properties(self):
         """Return a dictionary of circuit properties."""
         summary = {"size": self.size(),
                    "depth": self.depth(),
@@ -1348,11 +1356,10 @@ class DAGCircuit:
         """
         dagcircuit = DAGCircuit()
         dagcircuit.name = circuit.name
-        for register in circuit.regs.values():
-            if isinstance(register, QuantumRegister):
-                dagcircuit.add_qreg(register)
-            else:
-                dagcircuit.add_creg(register)
+        for register in circuit.qregs:
+            dagcircuit.add_qreg(register)
+        for register in circuit.cregs:
+            dagcircuit.add_creg(register)
         # Add user gate definitions
         for name, data in circuit.definitions.items():
             dagcircuit.add_basis_element(name, data["n_bits"], 0,
@@ -1377,7 +1384,8 @@ class DAGCircuit:
             # TODO: generate definitions and nodes for CompositeGates,
             # for now simply drop their instructions into the DAG
             instruction_list = []
-            is_composite = isinstance(main_instruction, CompositeGate)
+            is_composite = isinstance(main_instruction,
+                                      _compositegate.CompositeGate)
             if is_composite and expand_gates:
                 instruction_list = main_instruction.instruction_list()
             else:
@@ -1392,10 +1400,10 @@ class DAGCircuit:
                     dagcircuit.add_basis_element(*simulator_instructions[instruction.name])
                 # Separate classical arguments to measurements
                 if instruction.name == "measure":
-                    qargs = [(instruction.arg[0][0].name, instruction.arg[0][1])]
-                    cargs = [(instruction.arg[1][0].name, instruction.arg[1][1])]
+                    qargs = [(instruction.qargs[0][0].name, instruction.qargs[0][1])]
+                    cargs = [(instruction.cargs[0][0].name, instruction.cargs[0][1])]
                 else:
-                    qargs = list(map(lambda x: (x[0].name, x[1]), instruction.arg))
+                    qargs = list(map(lambda x: (x[0].name, x[1]), instruction.qargs))
                     cargs = []
                 # Get arguments for classical control (if any)
                 if instruction.control is None:

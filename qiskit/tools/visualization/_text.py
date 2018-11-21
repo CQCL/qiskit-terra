@@ -10,6 +10,9 @@ A module for drawing circuits in ascii art or some other text representation
 """
 
 from itertools import groupby
+from shutil import get_terminal_size
+
+from ._error import VisualizationError
 
 
 class DrawElement():
@@ -398,12 +401,19 @@ class InputWire(DrawElement):
 class TextDrawing():
     """ The text drawing"""
 
-    def __init__(self, json_circuit, reversebits=False, plotbarriers=True):
+    def __init__(self, json_circuit, reversebits=False, plotbarriers=True, line_length=None):
         self.json_circuit = json_circuit
         self.reversebits = reversebits
         self.plotbarriers = plotbarriers
+        self.line_length = line_length
         self.qubitorder = self._get_qubitorder()
         self.clbitorder = self._get_clbitorder()
+
+    def __str__(self):
+        return self.single_string()
+
+    def _repr_html_(self):
+        return '<pre style="line-height: 15px;">%s</pre>' % self.single_string()
 
     def _get_qubit_labels(self):
         qubits = []
@@ -446,16 +456,42 @@ class TextDrawing():
                 creg_dest_order.append("%s_%s" % (creg[0], clbit))
         return [creg_dest_order.index(ind) for ind in self._get_clbit_labels()]
 
+    def single_string(self):
+        """
+        Creates a loong string with the ascii art
+        Returns:
+            str: The lines joined by '\n'
+        """
+        return "\n".join(self.lines())
+
+    def dump(self, filename, encoding="utf8"):
+        """
+        Dumps the ascii art in the file.
+        Args:
+            filename (str): File to dump the ascii art.
+            encoding (str): Optional. Default "utf-8".
+        """
+        with open(filename, mode='w', encoding=encoding) as text_file:
+            text_file.write(self.single_string())
+
     def lines(self, line_length=None):
         """
         Generates a list with lines. These lines form the text drawing.
         Args:
-            line_length (int): Optional. When given, breaks the circuit drawing to this length. This
-                               useful when the drawing does not fit in the console.
+            line_length (int): Optional. Breaks the circuit drawing to this length. This
+                               useful when the drawing does not fit in the console. If
+                               None (default), it will try to guess the console width using
+                               shutil.get_terminal_size(). If you don't want pagination
+                               at all, set line_length=-1.
 
         Returns:
             list: A list of lines with the text drawing.
         """
+        if line_length is None:
+            line_length = self.line_length
+        if line_length is None:
+            line_length, _ = get_terminal_size()
+
         noqubits = self.json_circuit['header']['number_of_qubits']
         layers = self.build_layers()
 
@@ -466,6 +502,9 @@ class TextDrawing():
         # -| H |---
         # -| H |---
 
+        if not line_length:
+            line_length = self.line_length
+
         layer_groups = [[]]
         rest_of_the_line = line_length
         for layerno, layer in enumerate(layers):
@@ -474,8 +513,8 @@ class TextDrawing():
 
             TextDrawing.normalize_width(layer)
 
-            if line_length is None:
-                # does not page
+            if line_length == -1:
+                # Do not use pagination (aka line breaking. aka ignore line_length).
                 layer_groups[-1].append(layer)
                 continue
 
@@ -672,7 +711,7 @@ class TextDrawing():
         Returns:
             list: List of DrawElements.
         Raises:
-            Exception: When the drawing is, for some reason, impossible to be drawn.
+            VisualizationError: When the drawing is, for some reason, impossible to be drawn.
         """
         layers = []
 
@@ -686,7 +725,8 @@ class TextDrawing():
                 layer.set_qubit(instruction['qubits'][0], MeasureFrom())
                 layer.set_clbit(instruction['clbits'][0], MeasureTo())
 
-            elif instruction['name'] == 'barrier':
+            elif instruction['name'] in ['barrier', 'snapshot', 'save', 'load',
+                                         'noise']:
                 # barrier
                 if not self.plotbarriers:
                     continue
@@ -768,7 +808,8 @@ class TextDrawing():
                 layer.set_qu_multibox(instruction['qubits'], TextDrawing.label_for_box(instruction))
 
             else:
-                raise Exception("I don't know how to handle this instruction", instruction)
+                raise VisualizationError(
+                    "Text visualizer does not know how to handle this instruction", instruction)
 
             layer.connect_with("│", connector_label)
 
@@ -831,8 +872,8 @@ class Layer:
 
         # Checks if qubits are consecutive
         if bits != [i for i in range(bits[0], bits[-1] + 1)]:
-            raise Exception("I don't know how to build a gate with multiple bits when"
-                            "they are not adjacent to each other")
+            raise VisualizationError("Text visualizaer does know how to build a gate with multiple"
+                                     "bits when they are not adjacent to each other")
 
         if len(bits) == 1:
             set_bit(bits[0], BoxOnWire(label, top_connect=top_connect))

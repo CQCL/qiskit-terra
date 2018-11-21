@@ -15,20 +15,20 @@ import itertools
 import json
 import logging
 import math
-import os
-import tempfile
 
-from matplotlib import get_backend as get_matplotlib_backend
-from matplotlib import patches
-from matplotlib import pyplot as plt
 import numpy as np
-import PIL
+
+try:
+    from matplotlib import patches
+    from matplotlib import pyplot as plt
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
 
 from qiskit import dagcircuit
-from qiskit import _qiskiterror
-from qiskit.tools.visualization import _qcstyle
-from qiskit.tools.visualization import _utils
 from qiskit import transpiler
+from qiskit.tools.visualization import _error
+from qiskit.tools.visualization import _qcstyle
 
 
 logger = logging.getLogger(__name__)
@@ -92,12 +92,14 @@ class Anchor:
 
 class MatplotlibDrawer:
     def __init__(self,
-                 basis='id,u0,u1,u2,u3,x,y,z,h,s,sdg,t,tdg,rx,ry,rz,'
-                       'cx,cy,cz,ch,crz,cu1,cu3,swap,ccx,cswap',
-                 scale=1.0, style=None):
+                 scale=1.0, style=None, plot_barriers=True,
+                 reverse_bits=False):
+
+        if not HAS_MATPLOTLIB:
+            raise ImportError('The class MatplotlibDrawer needs matplotlib. '
+                              'Run "pip install matplotlib" before.')
 
         self._ast = None
-        self._basis = basis
         self._scale = DEFAULT_SCALE * scale
         self._creg = []
         self._qreg = []
@@ -111,6 +113,8 @@ class MatplotlibDrawer:
         }
 
         self._style = _qcstyle.QCStyle()
+        self.plot_barriers = plot_barriers
+        self.reverse_bits = reverse_bits
         if style:
             if isinstance(style, dict):
                 self._style.set_style(style)
@@ -130,8 +134,10 @@ class MatplotlibDrawer:
     def parse_circuit(self, circuit):
         dag_circuit = dagcircuit.DAGCircuit.fromQuantumCircuit(
             circuit, expand_gates=False)
+        basis = ("id,u0,u1,u2,u3,x,y,z,h,s,sdg,t,tdg,rx,ry,rz,"
+                 "cx,cy,cz,ch,crz,cu1,cu3,swap,ccx,cswap")
         self._ast = transpiler.transpile_dag(dag_circuit,
-                                             basis_gates=self._basis,
+                                             basis_gates=basis,
                                              format='json')
         self._registers()
         self._ops = self._ast['instructions']
@@ -143,11 +149,13 @@ class MatplotlibDrawer:
         for e in header['clbit_labels']:
             for i in range(e[1]):
                 self._creg.append(Register(name=e[0], index=i))
-        assert len(self._creg) == header['number_of_clbits']
+        if len(self._creg) != header['number_of_clbits']:
+            raise _error.VisualizationError('internal error')
         self._qreg = []
         for e in header['qubit_labels']:
             self._qreg.append(Register(name=e[0], index=e[1]))
-        assert len(self._qreg) == header['number_of_qubits']
+        if len(self._qreg) != header['number_of_qubits']:
+            raise _error.VisualizationError('internal error')
 
     @property
     def ast(self):
@@ -357,29 +365,11 @@ class MatplotlibDrawer:
         if self._style.figwidth < 0.0:
             self._style.figwidth = fig_w * self._scale * self._style.fs / 72 / WID
         self.figure.set_size_inches(self._style.figwidth, self._style.figwidth * fig_h / fig_w)
-
-        if get_matplotlib_backend() == 'module://ipykernel.pylab.backend_inline':
-            # returns None when matplotlib is inline mode to prevent Jupyter
-            # with matplotlib inlining enabled to draw the diagram twice.
-            im = None
-        else:
-            # when matplotlib is not inline mode,
-            # self.figure.savefig is called twice because...
-            # ... this is needed to get the in-memory representation
-            with tempfile.TemporaryDirectory() as tmpdir:
-                tmpfile = os.path.join(tmpdir, 'circuit.png')
-                self.figure.savefig(tmpfile, dpi=self._style.dpi,
-                                    bbox_inches='tight')
-                im = PIL.Image.open(tmpfile)
-                _utils._trim(im)
-                os.remove(tmpfile)
-
-        # ... and this is needed to delegate in matplotlib the generation of
-        # the proper format.
         if filename:
             self.figure.savefig(filename, dpi=self._style.dpi,
                                 bbox_inches='tight')
-        return im
+        plt.close(self.figure)
+        return self.figure
 
     def _draw_regs(self):
         # quantum register
@@ -426,7 +416,7 @@ class MatplotlibDrawer:
                 self._cond['n_lines'] += 1
                 idx += 1
         # reverse bit order
-        if self._style.reverse:
+        if self.reverse_bits:
             self._reverse_bits(self._qreg_dict)
             self._reverse_bits(self._creg_dict)
 
@@ -554,7 +544,9 @@ class MatplotlibDrawer:
                         this_anc, gw) for jj in q_list]
                     if all(locs):
                         for ii in q_list:
-                            if op['name'] == 'barrier' and not self._style.barrier:
+                            if op['name'] in [
+                                    'barrier', 'snapshot', 'load', 'save',
+                                    'noise'] and not self.plot_barriers:
                                 q_anchors[ii].set_index(this_anc - 1, gw)
                             else:
                                 q_anchors[ii].set_index(this_anc, gw)
@@ -611,7 +603,8 @@ class MatplotlibDrawer:
             if op['name'] == 'measure':
                 vv = self._creg_dict[c_idxs[0]]['index']
                 self._measure(q_xy[0], c_xy[0], vv)
-            elif op['name'] == 'barrier':
+            elif op['name'] in ['barrier', 'snapshot', 'load', 'save',
+                                'noise']:
                 q_group = self._qreg_dict[q_idxs[0]]['group']
                 if q_group not in _barriers['group']:
                     _barriers['group'].append(q_group)
@@ -619,7 +612,7 @@ class MatplotlibDrawer:
                 if op_next and op_next['name'] == 'barrier':
                     continue
                 else:
-                    if self._style.barrier:
+                    if self.plot_barriers:
                         self._barrier(_barriers, this_anc)
                     _barriers['group'].clear()
                     _barriers['coord'].clear()
@@ -693,7 +686,7 @@ class MatplotlibDrawer:
                 self._line(qreg_b, qreg_t)
             else:
                 logger.critical('Invalid gate %s', op)
-                raise _qiskiterror.QISKitError('invalid gate {}'.format(op))
+                raise _error.VisualizationError('invalid gate {}'.format(op))
         #
         # adjust window size and draw horizontal lines
         #

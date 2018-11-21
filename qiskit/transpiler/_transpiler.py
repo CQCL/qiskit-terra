@@ -13,14 +13,15 @@ import scipy.sparse.csgraph as cs
 
 from qiskit.transpiler._transpilererror import TranspilerError
 from qiskit._qiskiterror import QISKitError
-from qiskit import QuantumCircuit
 from qiskit.dagcircuit import DAGCircuit
+from qiskit import _quantumcircuit
 from qiskit.unrollers import _dagunroller
 from qiskit.unrollers import _dagbackend
 from qiskit.unrollers import _jsonbackend
 from qiskit.mapper import (Coupling, optimize_1q_gates, coupling_list2dict, swap_mapper,
                            cx_cancellation, direction_mapper,
                            remove_last_measurements, return_last_measurements)
+from qiskit._pubsub import Publisher, Subscriber
 from ._parallel import parallel_map
 import time
 logger = logging.getLogger(__name__)
@@ -46,9 +47,7 @@ def transpile(circuits, backend, basis_gates=None, coupling_map=None, initial_la
     Raises:
         TranspilerError: in case of bad compile options, e.g. the hpc options.
     """
-    print("In transpile")
-
-    if isinstance(circuits, QuantumCircuit):
+    if isinstance(circuits, _quantumcircuit.QuantumCircuit):
         circuits = [circuits]
 
     # FIXME: THIS NEEDS TO BE CLEANED UP -- some things to decide for list of circuits:
@@ -127,7 +126,33 @@ def _dags_2_dags(dags, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
 
     Raises:
         TranspilerError: if the format is not valid.
+
+    Events:
+        terra.transpiler.transpile_dag.start: When the transpilation of the dags is about to start
+        terra.transpiler.transpile_dag.done: When one of the dags has finished it's transpilation
+        terra.transpiler.transpile_dag.finish: When all the dags have finished transpiling
     """
+
+    def _emmit_start(num_dags):
+        """ Emmit a dag transpilation start event
+        Arg:
+            num_dags: Number of dags to be transpiled"""
+        Publisher().publish("terra.transpiler.transpile_dag.start", num_dags)
+    Subscriber().subscribe("terra.transpiler.parallel.start", _emmit_start)
+
+    def _emmit_done(progress):
+        """ Emmit a dag transpilation done event
+        Arg:
+            progress: The dag number that just has finshed transpile"""
+        Publisher().publish("terra.transpiler.transpile_dag.done", progress)
+    Subscriber().subscribe("terra.transpiler.parallel.done", _emmit_done)
+
+    def _emmit_finish():
+        """ Emmit a dag transpilation finish event
+        Arg:
+            progress: The dag number that just has finshed transpile"""
+        Publisher().publish("terra.transpiler.transpile_dag.finish")
+    Subscriber().subscribe("terra.transpiler.parallel.finish", _emmit_finish)
 
     dags_layouts = list(zip(dags, initial_layouts))
     final_dags = parallel_map(_transpile_dags_parallel, dags_layouts,
@@ -250,7 +275,7 @@ def transpile_dag(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
         # if a coupling map is given compile to the map
         if coupling_map:
             logger.info("pre-mapping properties: %s",
-                        dag.property_summary())
+                        dag.properties())
             # Insert swap gates
             coupling = Coupling(coupling_list2dict(coupling_map))
             removed_meas = remove_last_measurements(dag)
@@ -272,15 +297,7 @@ def transpile_dag(dag, basis_gates='u1,u2,u3,cx,id', coupling_map=None,
             return_last_measurements(dag, removed_meas,
                                      last_layout)
             logger.info("post-mapping properties: %s",
-                        dag.property_summary())
-    print("Compile time: ", time.time()-start_time)
-    # print("Depth: ", depth)
-
-    # print("Depth change: ", dag.depth() - depth)
-    # print("POST QASM\n\n")
-    # qastr = dag.qasm(qeflag=True)
-    # print(qastr)
-    # x = input("Press any key")
+                        dag.properties())
 
     # choose output format
     # TODO: do we need all of these formats, or just the dag?
