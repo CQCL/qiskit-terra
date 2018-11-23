@@ -23,7 +23,7 @@ class SymRzGate(Gate):
 
     def reapply(self, circ):
         """Reapply this gate to corresponding qubits in circ."""
-        self._modifiers(circ.symrz(self.arg[0], self.desc))
+        self._modifiers(circ.symrz(self.qargs[0], self.desc))
 
 
 def symrz(self, q, desc):
