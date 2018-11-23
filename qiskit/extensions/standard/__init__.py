@@ -34,3 +34,4 @@ from .ch import ch
 from .crz import crz
 from .cu3 import cu3
 from .rzz import rzz
+from .symrz import symrz
