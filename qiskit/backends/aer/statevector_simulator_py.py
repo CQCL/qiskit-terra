@@ -23,6 +23,7 @@ import uuid
 
 from qiskit.backends.aer.aerjob import AerJob
 from qiskit.backends.aer._simulatorerror import SimulatorError
+from qiskit.backends.models import BackendConfiguration, BackendProperties
 from qiskit.qobj import QobjInstruction
 from .qasm_simulator_py import QasmSimulatorPy
 
@@ -33,18 +34,40 @@ class StatevectorSimulatorPy(QasmSimulatorPy):
     """Python statevector simulator."""
 
     DEFAULT_CONFIGURATION = {
-        'name': 'statevector_simulator_py',
+        'backend_name': 'statevector_simulator_py',
+        'backend_version': '1.0.0',
+        'n_qubits': -1,
         'url': 'https://github.com/QISKit/qiskit-terra',
         'simulator': True,
         'local': True,
+        'conditional': False,
+        'open_pulse': False,
         'description': 'A Python statevector simulator for qobj files',
-        'coupling_map': 'all-to-all',
-        'basis_gates': 'u1,u2,u3,cx,id,snapshot'
+        'basis_gates': ['u1', 'u2', 'u3', 'cx', 'id', 'snapshot'],
+        'gates': [{'name': 'TODO', 'parameters': [], 'qasm_def': 'TODO'}]
     }
 
     def __init__(self, configuration=None, provider=None):
-        super().__init__(configuration=configuration or self.DEFAULT_CONFIGURATION.copy(),
+        super().__init__(configuration=(configuration or
+                                        BackendConfiguration.from_dict(self.DEFAULT_CONFIGURATION)),
                          provider=provider)
+
+    def properties(self):
+        """Return backend properties"""
+        properties = {
+            'backend_name': self.name(),
+            'backend_version': self.configuration().backend_version,
+            'last_update_date': '2000-01-01 00:00:00Z',
+            'qubits': [[{'name': 'TODO', 'date': '2000-01-01 00:00:00Z',
+                         'unit': 'TODO', 'value': 0}]],
+            'gates': [{'qubits': [0], 'gate': 'TODO',
+                       'parameters':
+                           [{'name': 'TODO', 'date': '2000-01-01 00:00:00Z',
+                             'unit': 'TODO', 'value': 0}]}],
+            'general': []
+        }
+
+        return BackendProperties.from_dict(properties)
 
     def run(self, qobj):
         """Run qobj asynchronously.

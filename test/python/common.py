@@ -24,6 +24,10 @@ from .http_recorder import http_recorder
 from ._test_options import get_test_options
 
 
+# Allows shorter stack trace for .assertDictAlmostEqual
+__unittest = True  # pylint: disable=invalid-name
+
+
 class Path(Enum):
     """Helper with paths commonly used during the tests."""
     # Main SDK path:    qiskit/
@@ -43,7 +47,6 @@ class QiskitTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        super(QiskitTestCase, cls).setUpClass()
         cls.moduleName = os.path.splitext(inspect.getfile(cls))[0]
         cls.log = logging.getLogger(cls.__name__)
         # Determines if the TestCase is using IBMQ credentials.
@@ -78,7 +81,6 @@ class QiskitTestCase(unittest.TestCase):
 
         IBMQ._accounts.clear()
         Aer._backends = Aer._verify_aer_backends()
-        super(QiskitTestCase, self).tearDown()
 
     @staticmethod
     def _get_resource_path(filename, path=Path.TEST):
