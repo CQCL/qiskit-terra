@@ -29,7 +29,6 @@ from qiskit.qobj import Qobj
 from qiskit.qobj import qobj_to_dict
 
 
-from pytket.dagcircuit_convert import tk_to_dagcircuit, dagcircuit_to_tk, tket_pass
 from qiskit.dagcircuit import DAGCircuit
 
 logger = logging.getLogger(__name__)
