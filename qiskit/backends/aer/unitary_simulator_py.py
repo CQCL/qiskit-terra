@@ -23,7 +23,7 @@ and the output is the results object
 
 The simulator is run using
 
-    UnitarySimulator(compiled_circuit).run().
+    UnitarySimulatorPy(compiled_circuit).run().
 
 In the qasm, key operations with type 'measure' and 'reset' are dropped.
 
@@ -83,9 +83,10 @@ returned results object::
 import logging
 import uuid
 import time
-
+from math import log2, sqrt
 import numpy as np
-
+from qiskit._util import local_hardware_info
+from qiskit.backends.models import BackendConfiguration, BackendProperties
 from qiskit.result._utils import copy_qasm_from_qobj_into_result, result_from_old_style_dict
 from qiskit.backends import BaseBackend
 from qiskit.backends.aer.aerjob import AerJob
@@ -99,26 +100,48 @@ logger = logging.getLogger(__name__)
 # does not show up
 
 
-class UnitarySimulator(BaseBackend):
+class UnitarySimulatorPy(BaseBackend):
     """Python implementation of a unitary simulator."""
 
     DEFAULT_CONFIGURATION = {
-        'name': 'unitary_simulator',
+        'backend_name': 'unitary_simulator_py',
+        'backend_version': '1.0.0',
+        'n_qubits': int(log2(sqrt(local_hardware_info()['memory'] * (1024**3))/16)),
         'url': 'https://github.com/QISKit/qiskit-terra',
         'simulator': True,
         'local': True,
-        'description': 'A python simulator for unitary matrix',
-        'coupling_map': 'all-to-all',
-        'basis_gates': 'u1,u2,u3,cx,id'
+        'conditional': False,
+        'open_pulse': False,
+        'description': 'A python simulator for unitary matrix corresponding to a circuit',
+        'basis_gates': ['u1', 'u2', 'u3', 'cx', 'id'],
+        'gates': [{'name': 'TODO', 'parameters': [], 'qasm_def': 'TODO'}]
     }
 
     def __init__(self, configuration=None, provider=None):
-        super().__init__(configuration=configuration or self.DEFAULT_CONFIGURATION.copy(),
+        super().__init__(configuration=(configuration or
+                                        BackendConfiguration.from_dict(self.DEFAULT_CONFIGURATION)),
                          provider=provider)
 
         # Define attributes inside __init__.
         self._unitary_state = None
         self._number_of_qubits = 0
+
+    def properties(self):
+        """Return backend properties"""
+        properties = {
+            'backend_name': self.name(),
+            'backend_version': self.configuration().backend_version,
+            'last_update_date': '2000-01-01 00:00:00Z',
+            'qubits': [[{'name': 'TODO', 'date': '2000-01-01 00:00:00Z',
+                         'unit': 'TODO', 'value': 0}]],
+            'gates': [{'qubits': [0], 'gate': 'TODO',
+                       'parameters':
+                           [{'name': 'TODO', 'date': '2000-01-01 00:00:00Z',
+                             'unit': 'TODO', 'value': 0}]}],
+            'general': []
+        }
+
+        return BackendProperties.from_dict(properties)
 
     def _add_unitary_single(self, gate, qubit):
         """Apply the single-qubit gate.
@@ -189,7 +212,7 @@ class UnitarySimulator(BaseBackend):
         for circuit in qobj.experiments:
             result_list.append(self.run_circuit(circuit))
         end = time.time()
-        result = {'backend': self._configuration['name'],
+        result = {'backend': self.name(),
                   'id': qobj.qobj_id,
                   'job_id': job_id,
                   'result': result_list,
@@ -198,8 +221,7 @@ class UnitarySimulator(BaseBackend):
                   'time_taken': (end - start)}
         copy_qasm_from_qobj_into_result(qobj, result)
 
-        return result_from_old_style_dict(
-            result, [circuit.header.name for circuit in qobj.experiments])
+        return result_from_old_style_dict(result)
 
     def run_circuit(self, circuit):
         """Apply the single-qubit gate.
@@ -216,7 +238,7 @@ class UnitarySimulator(BaseBackend):
         """
         self._number_of_qubits = circuit.header.number_of_qubits
         if self._number_of_qubits > 24:
-            raise QISKitError("np.einsum implementation limits unitary_simulator" +
+            raise QISKitError("np.einsum implementation limits unitary_simulator_py" +
                               " to 24 qubit circuits.")
         result = {
             'data': {},
@@ -254,8 +276,9 @@ class UnitarySimulator(BaseBackend):
                 result['status'] = 'ERROR'
                 return result
         # Reshape unitary rank-2n tensor back to a matrix
-        result['data']['unitary'] = np.reshape(self._unitary_state,
-                                               2 * [2 ** self._number_of_qubits])
+        tmp = np.reshape(self._unitary_state, 2 * [2 ** self._number_of_qubits])
+        # Convert complex numbers to pair of (real, imag)
+        result['data']['unitary'] = np.stack((tmp.real, tmp.imag), axis=-1)
         result['status'] = 'DONE'
         result['success'] = True
         result['shots'] = 1

@@ -13,15 +13,14 @@ import unittest
 import numpy as np
 from numpy.linalg import norm
 
-from qiskit import qasm, unroll
+from qiskit.unroll import DagUnroller, JsonBackend
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
 from qiskit.backends.aer.qasm_simulator import (QasmSimulator,
                                                 cx_error_matrix,
                                                 x90_error_matrix)
 from qiskit.dagcircuit import DAGCircuit
 from qiskit.qobj import Qobj, QobjItem, QobjConfig, QobjHeader, QobjExperiment
-from qiskit.transpiler import transpile_dag
-from ..common import QiskitTestCase, requires_cpp_simulator
+from ..common import QiskitTestCase, requires_cpp_simulator, bin_to_hex_keys
 
 
 class TestAerQasmSimulator(QiskitTestCase):
@@ -33,11 +32,7 @@ class TestAerQasmSimulator(QiskitTestCase):
     def setUp(self):
         self.seed = 88
         self.qasm_filename = self._get_resource_path('qasm/example.qasm')
-        with open(self.qasm_filename, 'r') as qasm_file:
-            self.qasm_text = qasm_file.read()
-            self.qasm_ast = qasm.Qasm(data=self.qasm_text).parse()
-            self.qasm_be = unroll.CircuitBackend(['u1', 'u2', 'u3', 'id', 'cx'])
-            self.qasm_circ = unroll.Unroller(self.qasm_ast, self.qasm_be).execute()
+        self.qasm_circ = QuantumCircuit.from_qasm_file(self.qasm_filename)
         qr = QuantumRegister(2, 'q')
         cr = ClassicalRegister(2, 'c')
         qc = QuantumCircuit(qr, cr)
@@ -46,12 +41,13 @@ class TestAerQasmSimulator(QiskitTestCase):
         self.qc = qc
 
         # create qobj
-        compiled_circuit1 = QobjExperiment.from_dict(
-            transpile_dag(DAGCircuit.fromQuantumCircuit(self.qc), format='json'))
+        dag = DAGCircuit.fromQuantumCircuit(self.qc)
+        json_circuit = DagUnroller(dag, JsonBackend(dag.basis)).execute()
+        compiled_circuit1 = QobjExperiment.from_dict(json_circuit)
 
-        compiled_circuit2 = QobjExperiment.from_dict(
-            transpile_dag(DAGCircuit.fromQuantumCircuit(self.qasm_circ),
-                          format='json'))
+        dag = DAGCircuit.fromQuantumCircuit(self.qasm_circ)
+        json_circuit = DagUnroller(dag, JsonBackend(dag.basis)).execute()
+        compiled_circuit2 = QobjExperiment.from_dict(json_circuit)
 
         self.qobj = Qobj(
             qobj_id='test_qobj',
@@ -172,7 +168,7 @@ class TestAerQasmSimulator(QiskitTestCase):
         for name in expected_data:
             # Check counts:
             counts = result.get_counts(name)
-            expected_counts = expected_data[name]['counts']
+            expected_counts = bin_to_hex_keys(expected_data[name]['counts'])
             if expected_data[name].get('deterministic', False):
                 self.assertEqual(counts, expected_counts,
                                  msg=name + ' counts')
