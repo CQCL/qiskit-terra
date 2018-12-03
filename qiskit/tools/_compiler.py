@@ -5,7 +5,7 @@
 # This source code is licensed under the Apache License, Version 2.0 found in
 # the LICENSE.txt file in the root directory of this source tree.
 
-"""Helper module for simplified QISKit usage."""
+"""Helper module for simplified Qiskit usage."""
 from copy import deepcopy
 import uuid
 import logging
@@ -152,7 +152,8 @@ def _dags_2_qobj_parallel(dag, config=None, basis_gates=None, coupling_map=None)
     experiment_config.update({
         'coupling_map': coupling_map,
         'basis_gates': basis_gates,
-        'layout': dag.layout,
+        'layout': [[[i[0][0].name, i[0][1]], [i[1][0].name, i[1][1]]]
+                   for i in dag.layout] if dag.layout else [],
         'memory_slots': sum([creg.size for creg in dag.cregs.values()]),
         # TODO: `n_qubits` is not part of the qobj spec, but needed for the simulator.
         'n_qubits': sum([qreg.size for qreg in dag.qregs.values()])
@@ -170,7 +171,7 @@ def _dags_2_qobj_parallel(dag, config=None, basis_gates=None, coupling_map=None)
 def execute(circuits, backend,
             config=None, basis_gates=None, coupling_map=None, initial_layout=None,
             shots=1024, max_credits=10, seed=None, qobj_id=None, hpc=None,
-            skip_transpiler=False, seed_mapper=None):
+            skip_transpiler=False, seed_mapper=None, **kwargs):
     """Executes a set of circuits.
 
     Args:
@@ -187,6 +188,8 @@ def execute(circuits, backend,
         qobj_id (int): identifier for the generated qobj
         hpc (dict): HPC simulator parameters
         skip_transpiler (bool): skip most of the compile steps and produce qobj directly
+        kwargs: extra arguments used by AER for runing configurable backends. Refer to the
+        backend documentation for details on these arguments
 
     Returns:
         BaseJob: returns job instance derived from BaseJob
@@ -195,4 +198,4 @@ def execute(circuits, backend,
                    config, basis_gates, coupling_map, initial_layout,
                    shots, max_credits, seed, qobj_id, hpc,
                    skip_transpiler, seed_mapper)
-    return backend.run(qobj)
+    return backend.run(qobj, **kwargs)

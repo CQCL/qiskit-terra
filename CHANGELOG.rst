@@ -71,7 +71,12 @@ Changed
     - ``backend.properties()`` (#1331).
     - ``qiskit.Result`` (#1360).
 - ``backend.provider()`` is now a method instead of a property (#1312).
-- Remove local backend (Aer) fallback (#1303)
+- Remove local backend (Aer) fallback (#1303).
+- DAGCircuits store Instruction and Register objects, instead of name
+  references. The DAGCircuit class methods are updated accordingly (#1210).
+- Different unrollers are deprecated. The only unrolling happens
+  from DAG to DAG (#1210).
+
 
 Deprecated
 """"""""""
@@ -109,6 +114,7 @@ Fixed
   (#1226)
 - Fixed a bug where the transpiler moved middle-of-circuit measurements to the
   end (#1334)
+- parallel_map no longer creates a progress bar for a single circuit (#1394).
 
 Removed
 """""""
@@ -134,6 +140,9 @@ Removed
   ``.from_dict()`` directly (#1360).
 - The ``qiskit.Result`` class method for ``len()`` and indexing have been
   removed, along with the functions that perform post-processing (#1351).
+- The ``get_snapshot()`` and ``get_snapshots()`` method from the ``Result``
+  class has been removed. Instead you can access the snapshots in a Result
+  using ``Result.data()['snapshots']``.
 
 `0.6.0`_ - 2018-10-04
 ^^^^^^^^^^^^^^^^^^^^^
